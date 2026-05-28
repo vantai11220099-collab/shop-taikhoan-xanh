@@ -104,11 +104,13 @@ async def casso_webhook(request):
     await application.bot.send_message(ADMIN_ID, f"💰 {user_id} nạp {amount:,}đ\nMã: {code}")
     return web.Response(text='ok')
 
-print("5. Tạo Application", flush=True)
 application = Application.builder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("sodu", sodu))
 application.add_handler(CommandHandler("add_tk", add_tk))
+application.add_handler(CommandHandler("kho", kho))        # Thêm dòng này
+application.add_handler(CommandHandler("cong", cong))      # Thêm dòng này
+application.add_handler(CommandHandler("stats", stats))    # Thêm dòng này
 application.add_handler(CallbackQueryHandler(button))
 
 async def on_startup(app):
