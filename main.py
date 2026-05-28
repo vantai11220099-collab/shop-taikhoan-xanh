@@ -112,19 +112,41 @@ async def add_tk(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Dùng: /add_tk Tên SP Giá|acc1|acc2")
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query; await query.answer(); user_id = query.from_user.id
-    if query.data == 'nap_tien': await nap(update, context)
-    elif query.data == 'sodu': await query.edit_message_text(f"👛 Số dư: `{get_balance(user_id):,}đ`\n\nGõ /start về menu", parse_mode='Markdown')
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    if query.data == 'nap_tien':
+        await nap(update, context)
+
+    elif query.data == 'sodu':
+        await query.edit_message_text(
+            f"💰 Số dư: `{get_balance(user_id):,}đ`\n\nGõ /start về menu",
+            parse_mode='Markdown'
+        )
+
     elif query.data.startswith('buy_'):
-        pid = int(query.data.split('_')[1]); product = get_product(pid)
-        if not product: return await query.edit_message_text("❌ Sản phẩm đã hết hàng")
-        name, price, stock = product; bal = get_balance(user_id)
+        pid = int(query.data.split('_')[1])
+        product = get_product(pid)
+
+        if not product:
+            return await query.edit_message_text("❌ Sản phẩm đã hết hàng")
+
+        name, price, stock = product
+        bal = get_balance(user_id)
+
         if bal < price:
             keyboard = [[InlineKeyboardButton("💰 Nạp tiền ngay", callback_data='nap_tien')]]
-            return await query.edit_message_text(f"❌ **KHÔNG ĐỦ SỐ DƯ**\n\nSP: {name}\nGiá: `{price:,}đ`\nCó: `{bal:,}đ`", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-        if not stock: return await query.edit_message_text("❌ Hết hàng rồi bro")
+            return await query.edit_message_text(
+                f"❌ **KHÔNG ĐỦ SỐ DƯ**\n\nSP: {name}\nGiá: `{price:,}đ`\nCó: `{bal:,}đ`",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+
+        if not stock:
+            return await query.edit_message_text("❌ Hết hàng rồi bro")
+
         conn.execute("UPDATE users SET balance = balance -? WHERE user_id=?", (price, user_id))
-        conn.execute("UPDATE products SET stock =? WHERE id=?", ('', pid))
         conn.execute("INSERT INTO orders (user_id, product_id, time) VALUES (?,?,datetime('now'))", (user_id, pid)); conn.commit()
         await query.edit_message_text(f"✅ **MUA THÀNH CÔNG**\n\n📦 SP: {name}\n🔑 TK: `{stock}`\n💵 Dư: `{get_balance(user_id):,}đ`", parse_mode='Markdown')
         await context.bot.send_message(ADMIN_ID, f"🔔 Đơn mới\nUser: `{user_id}` @{query.from_user.username}\nSP: {name}\nGiá: {price:,}đ")
