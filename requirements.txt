@@ -1,4 +1,3 @@
-Code
 python-telegram-bot==20.7
 aiohttp
 python-dotenv
