@@ -5,7 +5,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQuer
 
 TOKEN = os.environ['BOT_TOKEN']
 WEBHOOK_URL = os.environ['WEBHOOK_URL']
-ADMIN_ID = 123456789 # Thay user_id Telegram của bạn
+ADMIN_ID = 8718318418 # Thay user_id Telegram của bạn
 
 app = Flask(__name__)
 loop = asyncio.new_event_loop()
