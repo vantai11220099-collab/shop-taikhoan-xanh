@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQuer
 # ==== CONFIG ==== Thay 6 dòng này
 TOKEN = os.environ['BOT_TOKEN']
 WEBHOOK_URL = os.environ['WEBHOOK_URL']
-ADMIN_ID = 871849512 # ID admin từ @userinfobot
+ADMIN_ID = 8718318418 # ID admin từ @userinfobot
 STK = "106886640236" # STK ngân hàng
 BANK = "VietinBank" # Tên bank
 BANK_CODE = "VTB" # Code bank: mb, vcb, tpb, tcb, acb
