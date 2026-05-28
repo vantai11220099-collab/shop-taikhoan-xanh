@@ -194,10 +194,10 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer() # Bắt buộc phải có dòng này
     user_id = query.from_user.id
 
-    if query.data == 'nap_tien':
-        await nap(update, context)
+if query.data == 'nap_tien':
+    await nap(update, context)
 
-  elif query.data == 'sodu':
+elif query.data == 'sodu':
     await query.message.reply_text(
         f"💰 Số dư: `{get_balance(user_id):,}đ`\n\nGõ /start về menu",
         parse_mode='Markdown'
