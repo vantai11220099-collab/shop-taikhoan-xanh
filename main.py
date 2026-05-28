@@ -58,10 +58,12 @@ async def kho(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not rows:
         return await update.message.reply_text("📦 Kho trống")
     text = "**📦 KHO HÀNG**\n\n"
-   for pid, name, price, stock in rows:
+ 
+for pid, name, price, stock in rows:
     count = len(stock.strip().split('\n')) if stock and stock.strip() else 0
     text += f"ID `{pid}` - {name} - `{price}k`\nTồn: `{count} acc`\n\n"
-    await update.message.reply_text(text, parse_mode='Markdown')
+    
+await update.message.reply_text(text, parse_mode='Markdown')
 
 async def cong(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id!= ADMIN_ID:
