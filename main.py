@@ -9,7 +9,7 @@ WEBHOOK_URL = os.environ['WEBHOOK_URL']
 ADMIN_ID = 8718318418 # ID admin từ @userinfobot
 STK = "106886640236" # STK ngân hàng
 BANK = "VietinBank" # Tên bank
-BANK_CODE = "VTB" # Code bank: mb, vcb, tpb, tcb, acb
+BANK_CODE = "icb" # Code bank: mb, vcb, tpb, tcb, acb
 TEN_CTK = "PHAM VAN TAI" # Tên chủ TK
 SUPPORT_URL = "https://t.me/btshopmmo" # Link hỗ trợ
 
