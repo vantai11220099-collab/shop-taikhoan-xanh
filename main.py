@@ -20,7 +20,8 @@ application.add_handler(CommandHandler("start", start))
 
 @app.route('/webhook', methods=['POST'])
 async def telegram_webhook():
-    await application.update_queue.put(Update.de_json(request.get_json(force=True), bot))
+    update = Update.de_json(request.get_json(force=True), bot)
+    await application.process_update(update)
     return 'ok'
 
 @app.route('/casso', methods=['POST']) 
