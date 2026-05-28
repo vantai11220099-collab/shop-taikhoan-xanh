@@ -188,7 +188,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if bal < price:
         keyboard = [[InlineKeyboardButton("💰 Nạp tiền ngay", callback_data='nap_tien')]]
-        return await query.message.reply_text(f"❌ **KHÔNG ĐỦ SỐ DƯ**\n\nSP: {name}\nGiá: `{price:,}đ`\nCó: `{bal:,}đ`", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+return await query.message.reply_text(
+    f"❌ **KHÔNG ĐỦ SỐ DƯ**\n\nSP: {name}\nGiá: `{price:,}đ`\nCó: `{bal:,}đ`", 
+    parse_mode='Markdown',
+    reply_markup=InlineKeyboardMarkup(keyboard)  # Thêm dòng này
+)
 
     if not stock_text or not stock_text.strip():
         return await query.message.reply_text("❌ Hết hàng rồi bro")
