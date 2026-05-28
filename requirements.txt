@@ -1,6 +1,3 @@
-python-telegram-bot==20.7
-aiohttp
-python-dotenv
-psycopg2-binary
-requests
-flask
+python-telegram-bot==21.6
+Flask==3.0.3
+gunicorn==22.0.0
