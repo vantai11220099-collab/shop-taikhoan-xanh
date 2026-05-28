@@ -191,34 +191,37 @@ async def nap(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer() # Bắt buộc phải có dòng này
+    await query.answer()
     user_id = query.from_user.id
 
-if query.data == 'nap_tien':
-    await nap(update, context)
+    if query.data == 'nap_tien':
+        await nap(update, context)
 
-elif query.data == 'sodu':
-    await query.message.reply_text(
-        f"💰 Số dư: `{get_balance(user_id):,}đ`\n\nGõ /start về menu",
-        parse_mode='Markdown'
-    )
+    elif query.data == 'sodu':
+        await query.message.reply_text(
+            f"💰 Số dư: `{get_balance(user_id):,}đ`\n\nGõ /start về menu",
+            parse_mode='Markdown'
+        )
 
-elif query.data.startswith('buy_'):
-    pid = int(query.data.split('_')[1])
-    product = get_product(pid)
-    if not product:
-        return await query.message.reply_text("❌ Sản phẩm đã hết hàng")
+    elif query.data.startswith('buy_'):
+        pid = int(query.data.split('_')[1])
+        product = get_product(pid)
+        if not product:
+            return await query.message.reply_text("❌ Sản phẩm đã hết hàng")
 
-    name, price, stock_text = product
-    bal = get_balance(user_id)
+        name, price, stock_text = product
+        bal = get_balance(user_id)
 
-    if bal < price:
-        keyboard = [[InlineKeyboardButton("💰 Nạp tiền ngay", callback_data='nap_tien')]]
-return await query.message.reply_text(
-    f"❌ **KHÔNG ĐỦ SỐ DƯ**\n\nSP: {name}\nGiá: `{price:,}đ`\nCó: `{bal:,}đ`", 
-    parse_mode='Markdown',
-    reply_markup=InlineKeyboardMarkup(keyboard)  # Thêm dòng này
-)
+        if not stock_text or not stock_text.strip():
+            return await query.message.reply_text("❌ Hết hàng rồi bro")
+
+        if bal < price:
+            keyboard = [[InlineKeyboardButton("💰 Nạp tiền ngay", callback_data='nap_tien')]]
+            return await query.message.reply_text(
+                f"❌ **KHÔNG ĐỦ SỐ DƯ**\n\nSP: {name}\nGiá: `{price:,}đ`\nCó: `{bal:,}đ`",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
 
     if not stock_text or not stock_text.strip():
         return await query.message.reply_text("❌ Hết hàng rồi bro")
