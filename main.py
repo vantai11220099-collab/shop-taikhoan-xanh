@@ -1,84 +1,217 @@
-import os, asyncio, sqlite3
+import os, asyncio, sqlite3, re
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 
+# ==== CONFIG ====
 TOKEN = os.environ['BOT_TOKEN']
 WEBHOOK_URL = os.environ['WEBHOOK_URL']
-ADMIN_ID = 8718318418 # Thay user_id Telegram của bạn
+ADMIN_ID = 8718318418 # Thay ID của bạn từ @userinfobot
+STK = "211819999" # Thay STK thật
+BANK = "MB Bank" # Thay bank thật
+TEN_CTK = "PHAM VAN TAI"
 
 app = Flask(__name__)
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 application = Application.builder().token(TOKEN).updater(None).build()
 
-# Tạo DB nếu chưa có
+# ==== DATABASE ====
 conn = sqlite3.connect('shop.db', check_same_thread=False)
-conn.execute('CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY, name TEXT, price INTEGER)')
+conn.execute('''CREATE TABLE IF NOT EXISTS products
+                (id INTEGER PRIMARY KEY, name TEXT, price INTEGER, stock TEXT)''')
+conn.execute('''CREATE TABLE IF NOT EXISTS users
+                (user_id INTEGER PRIMARY KEY, balance INTEGER DEFAULT 0)''')
+conn.execute('''CREATE TABLE IF NOT EXISTS orders
+                (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, product_id INTEGER, time TEXT)''')
+conn.commit()
 
+def get_balance(user_id):
+    cur = conn.execute("SELECT balance FROM users WHERE user_id=?", (user_id,))
+    row = cur.fetchone()
+    if row: return row[0]
+    conn.execute("INSERT INTO users VALUES (?,0)", (user_id,))
+    conn.commit()
+    return 0
+
+def add_balance(user_id, amount):
+    get_balance(user_id)
+    conn.execute("UPDATE users SET balance = balance +? WHERE user_id=?", (amount, user_id))
+    conn.commit()
+
+def get_product(pid):
+    cur = conn.execute("SELECT name, price, stock FROM products WHERE id=?", (pid,))
+    return cur.fetchone()
+
+# ==== USER COMMANDS ====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cur = conn.execute("SELECT id, name, price FROM products")
+    user_id = update.effective_user.id
+    bal = get_balance(user_id)
+
+    cur = conn.execute("SELECT id, name, price FROM products WHERE stock!= ''")
     products = cur.fetchall()
 
     keyboard = []
-    for pid, name, price in products:
-        keyboard.append([InlineKeyboardButton(f"{name} - {price}k", callback_data=f'buy_{pid}')])
-    keyboard.append([InlineKeyboardButton("💰 Nạp tiền", callback_data='nap_tien')])
+    row = []
+    for i, (pid, name, price) in enumerate(products):
+        # Auto icon theo tên SP
+        icon = "🎬" if "netflix" in name.lower() else "🎵" if "spotify" in name.lower() else "📺" if "youtube" in name.lower() else "⭐"
+        btn = InlineKeyboardButton(f"{icon} {name}", callback_data=f'buy_{pid}')
+        row.append(btn)
+        if len(row) == 3 or i == len(products) - 1:
+            keyboard.append(row)
+            row = []
+
+    keyboard.append([
+        InlineKeyboardButton("💰 Nạp tiền", callback_data='nap_tien'),
+        InlineKeyboardButton("👛 Số dư", callback_data='sodu'),
+        InlineKeyboardButton("🆘 Hỗ trợ", url='https://t.me/your_username') # Thay link tele
+    ])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-    text = "🎉 BT SHOP 🎉\n\n👇 DANH SÁCH TÀI KHOẢN HIỆN CÓ:"
-    await update.message.reply_text(text, reply_markup=reply_markup)
+    text = f"🎉 **BT SHOP** 🎉\n\n👤 {update.effective_user.first_name}\n💵 Số dư: `{bal:,}đ`\n\n👇 **CHỌN DỊCH VỤ:**"
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
-# LỆNH ADMIN: /add Tên_sản_phẩm Giá
-async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id!= ADMIN_ID:
-        return await update.message.reply_text("Bạn không phải admin")
+async def nap(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    noidung = f"BT{user_id}"
+    text = f"""💸 **NẠP TIỀN TỰ ĐỘNG**
+
+Ngân hàng: `{BANK}`
+Số TK: `{STK}`
+Chủ TK: `{TEN_CTK}`
+Nội dung: `{noidung}`
+
+⚠️ CHUYỂN ĐÚNG NỘI DUNG ĐỂ AUTO + TIỀN"""
+    await update.message.reply_text(text, parse_mode='Markdown')
+
+async def sodu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    bal = get_balance(update.effective_user.id)
+    await update.message.reply_text(f"👛 Số dư: `{bal:,}đ`", parse_mode='Markdown')
+
+async def mua(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     try:
-        price = int(context.args[-1])
-        name = " ".join(context.args[:-1])
-        conn.execute("INSERT INTO products (name, price) VALUES (?,?)", (name, price))
+        pid = int(context.args[0])
+        product = get_product(pid)
+        if not product: return await update.message.reply_text("❌ ID sản phẩm không tồn tại")
+
+        name, price, stock = product
+        bal = get_balance(user_id)
+
+        if bal < price:
+            return await update.message.reply_text(f"❌ Không đủ tiền\nCần: `{price:,}đ`\nBạn có: `{bal:,}đ`\nGõ /nap để nạp", parse_mode='Markdown')
+
+        if not stock:
+            return await update.message.reply_text("❌ Hết hàng")
+
+        conn.execute("UPDATE users SET balance = balance -? WHERE user_id=?", (price, user_id))
+        conn.execute("UPDATE products SET stock =? WHERE id=?", ('', pid))
+        conn.execute("INSERT INTO orders (user_id, product_id, time) VALUES (?,?,datetime('now'))", (user_id, pid))
         conn.commit()
-        await update.message.reply_text(f"Đã thêm: {name} - {price}k")
+
+        new_bal = get_balance(user_id)
+        await update.message.reply_text(f"✅ **MUA THÀNH CÔNG**\n\nSản phẩm: {name}\nTài khoản: `{stock}`\nSố dư còn: `{new_bal:,}đ`", parse_mode='Markdown')
+        await context.bot.send_message(ADMIN_ID, f"🔔 Đơn mới\nKhách: `{user_id}`\nSP: {name}\nGiá: {price:,}đ", parse_mode='Markdown')
+
     except:
-        await update.message.reply_text("Sai cú pháp: /add Netflix 1 tháng 45")
+        await update.message.reply_text("Sai cú pháp: `/mua 1`\nGõ /start để xem ID sản phẩm", parse_mode='Markdown')
 
-# LỆNH ADMIN: /del 1
-async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ==== ADMIN COMMANDS ====
+async def add_tk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id!= ADMIN_ID: return
-    pid = int(context.args[0])
-    conn.execute("DELETE FROM products WHERE id =?", (pid,))
-    conn.commit()
-    await update.message.reply_text(f"Đã xóa sản phẩm ID {pid}")
+    try:
+        text = " ".join(context.args)
+        parts = text.split('|')
+        stock = parts[1].strip()
+        name_price = parts[0].strip().split()
+        price = int(name_price[-1])
+        name = " ".join(name_price[:-1])
 
-# LỆNH ADMIN: /list
-async def list_products(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        conn.execute("INSERT INTO products (name, price, stock) VALUES (?,?,?)", (name, price, stock))
+        conn.commit()
+        await update.message.reply_text(f"✅ Đã thêm: {name} - {price:,}đ")
+    except:
+        await update.message.reply_text("Cú pháp: `/add_tk Netflix 1 tháng 45 acc@gmail.com|pass123`", parse_mode='Markdown')
+
+async def cong(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id!= ADMIN_ID: return
-    cur = conn.execute("SELECT id, name, price FROM products")
-    text = "Danh sách SP:\n"
-    for pid, name, price in cur.fetchall():
-        text += f"ID {pid}: {name} - {price}k\n"
-    await update.message.reply_text(text)
+    try:
+        user_id = int(context.args[0])
+        amount = int(context.args[1])
+        add_balance(user_id, amount)
+        new_bal = get_balance(user_id)
+        await update.message.reply_text(f"✅ Đã cộng `{amount:,}đ` cho `{user_id}`\nSố dư mới: `{new_bal:,}đ`", parse_mode='Markdown')
+        await context.bot.send_message(user_id, f"🎉 Admin vừa cộng `{amount:,}đ` vào tài khoản!\nSố dư: `{new_bal:,}đ`", parse_mode='Markdown')
+    except:
+        await update.message.reply_text("Cú pháp: `/cong 123456789 50000`", parse_mode='Markdown')
 
+async def list_sp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id!= ADMIN_ID: return
+    cur = conn.execute("SELECT id, name, price, stock FROM products")
+    text = "**DANH SÁCH SP:**\n\n"
+    for pid, name, price, stock in cur.fetchall():
+        status = "✅ Còn" if stock else "❌ Hết"
+        text += f"`ID {pid}`: {name} - {price:,}đ - {status}\n"
+    await update.message.reply_text(text, parse_mode='Markdown')
+
+# ==== CALLBACK BUTTONS ====
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    user_id = query.from_user.id
+
     if query.data == 'nap_tien':
-        await query.edit_message_text("Gõ /nap để lấy STK")
+        noidung = f"BT{user_id}"
+        await query.edit_message_text(f"Gõ /nap để lấy STK\nNội dung CK: `{noidung}`", parse_mode='Markdown')
+    elif query.data == 'sodu':
+        bal = get_balance(user_id)
+        await query.edit_message_text(f"👛 Số dư: `{bal:,}đ`", parse_mode='Markdown')
     elif query.data.startswith('buy_'):
-        await query.edit_message_text("Gõ /nap nạp tiền trước rồi ib admin nha")
+        pid = int(query.data.split('_')[1])
+        product = get_product(pid)
+        if product:
+            await query.edit_message_text(f"**{product[0]}**\nGiá: `{product[1]:,}đ`\n\nGõ `/mua {pid}` để mua ngay", parse_mode='Markdown')
 
-loop.run_until_complete(application.initialize())
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("add", add))
-application.add_handler(CommandHandler("del", delete))
-application.add_handler(CommandHandler("list", list_products))
-application.add_handler(CallbackQueryHandler(button))
-
+# ==== FLASK ROUTES ====
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
     loop.run_until_complete(application.process_update(update))
     return 'ok'
+
+@app.route('/casso', methods=['POST'])
+def casso():
+    data = request.json['data'][0]
+    amount = data['amount']
+    desc = data['description']
+    match = re.search(r'BT(\d+)', desc)
+    if match:
+        user_id = int(match.group(1))
+        add_balance(user_id, amount)
+        new_bal = get_balance(user_id)
+        loop.run_until_complete(
+            application.bot.send_message(user_id, f"✅ Nạp thành công `{amount:,}đ`\nSố dư: `{new_bal:,}đ`", parse_mode='Markdown')
+        )
+        loop.run_until_complete(
+            application.bot.send_message(ADMIN_ID, f"💰 `{user_id}` vừa nạp `{amount:,}đ`", parse_mode='Markdown')
+        )
+    return 'ok'
+
+@app.route('/')
+def home():
+    return 'Bot đang chạy'
+
+# ==== RUN ====
+loop.run_until_complete(application.initialize())
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("nap", nap))
+application.add_handler(CommandHandler("sodu", sodu))
+application.add_handler(CommandHandler("mua", mua))
+application.add_handler(CommandHandler("add_tk", add_tk))
+application.add_handler(CommandHandler("cong", cong))
+application.add_handler(CommandHandler("list", list_sp))
+application.add_handler(CallbackQueryHandler(button))
 
 if __name__ == '__main__':
     application.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
