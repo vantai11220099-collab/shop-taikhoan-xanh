@@ -87,11 +87,26 @@ async def sodu(update: Update, context: ContextTypes.DEFAULT_TYPE): await update
 async def add_tk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id!= ADMIN_ID: return
     try:
-        text = " ".join(context.args); parts = text.split('|'); stock = parts[1].strip()
-        name_price = parts[0].strip().split(); price = int(name_price[-1]); name = " ".join(name_price[:-1])
-        conn.execute("INSERT INTO products (name, price, stock) VALUES (?,?,?)", (name, price, stock)); conn.commit()
-        await update.message.reply_text(f"✅ Đã thêm: {name} - {price:,}đ")
-    except: await update.message.reply_text("Cú pháp: `/add_tk Netflix 1 tháng 45 acc|pass`", parse_mode='Markdown')
+        text = update.message.text.split(' ', 1)[1]
+        name_price, *accounts = text.split('|')
+        name, price = name_price.rsplit(' ', 1)
+        name = name.strip()
+        price = int(price)
+        new_stock = '\n'.join(accounts)
+
+        cur = conn.execute("SELECT id, stock FROM products WHERE name=?", (name,))
+        row = cur.fetchone()
+
+        if row: # Có rồi thì cộng dồn
+            pid, old_stock = row
+            all_stock = old_stock + '\n' + new_stock if old_stock else new_stock
+            conn.execute("UPDATE products SET stock=?, price=? WHERE id=?", (all_stock, price, pid))
+        else: # Chưa có thì tạo mới
+            conn.execute("INSERT INTO products (name, price, stock) VALUES (?,?,?)", (name, price, new_stock))
+        conn.commit()
+        await update.message.reply_text(f"✅ Đã thêm {len(accounts)} acc vào `{name}`", parse_mode='Markdown')
+    except:
+        await update.message.reply_text("Dùng: /add_tk Tên SP Giá|acc1|acc2")
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; await query.answer(); user_id = query.from_user.id
