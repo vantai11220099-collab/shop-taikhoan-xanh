@@ -1,13 +1,14 @@
-import os, asyncio, sqlite3, re, random, string
+import os, sqlite3, re, random, string
 from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
+import asyncio
 
 # ==== CONFIG ==== Thay 6 dòng này
 TOKEN = os.environ['BOT_TOKEN']
 WEBHOOK_URL = os.environ['WEBHOOK_URL']
 ADMIN_ID = 8718318418
-STK = "106886640236" # STK VietinBank
+STK = "106886640236"
 BANK = "VietinBank"
 BANK_CODE = "icb" # icb=VietinBank
 TEN_CTK = "PHAM VAN TAI" # VIẾT HOA KHÔNG DẤU
@@ -15,6 +16,7 @@ SUPPORT_URL = "https://t.me/btshopmmo"
 
 app = Flask(__name__)
 application = Application.builder().token(TOKEN).updater(None).build()
+loop = asyncio.get_event_loop()
 
 # ==== DATABASE ====
 conn = sqlite3.connect('shop.db', check_same_thread=False)
@@ -74,8 +76,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = f"🎉 **BT SHOP** 🎉\n\n👤 {update.effective_user.first_name}\n💵 Số dư: `{bal:,}đ`\n\n👇 **CHỌN DỊCH VỤ:**"
     await update.message.reply_text(text, reply_markup=reply_markup, parse_mode='Markdown')
 
-# ==== NẠP TIỀN - DÙNG CHO CẢ NÚT VÀ LỆNH ====
-async def nap_logic(user_id, message_obj):
+async def nap(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     code = random_code()
     conn.execute("INSERT INTO trans (code, user_id, status) VALUES (?,?,?)", (code, user_id, 'pending'))
     conn.commit()
@@ -92,7 +94,7 @@ Nội dung: `{code}`
 ⚠️ MÃ CHỈ DÙNG 1 LẦN
 👇 Quét QR chuyển nhanh"""
 
-    await message_obj.reply_photo(photo=qr_url, caption=text, parse_mode='Markdown')
+    await update.message.reply_photo(photo=qr_url, caption=text, parse_mode='Markdown')
 
 async def sodu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bal = get_balance(update.effective_user.id)
@@ -152,8 +154,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
 
     if query.data == 'nap_tien':
-        # Bấm nút Nạp tiền -> Gửi QR luôn
-        await nap_logic(user_id, query.message)
+        await nap(query, context)
     elif query.data == 'sodu':
         bal = get_balance(user_id)
         await query.edit_message_text(f"👛 Số dư: `{bal:,}đ`\n\nGõ /start về menu", parse_mode='Markdown')
@@ -166,13 +167,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bal = get_balance(user_id)
 
         if bal < price:
-            # Thiếu tiền -> Gửi nút nạp luôn
-            keyboard = [[InlineKeyboardButton("💰 Nạp tiền ngay", callback_data='nap_tien')]]
-            return await query.edit_message_text(
-                f"❌ **KHÔNG ĐỦ SỐ DƯ**\n\nSP: {name}\nGiá: `{price:,}đ`\nCó: `{bal:,}đ`",
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
-            )
+            return await query.edit_message_text(f"❌ **KHÔNG ĐỦ SỐ DƯ**\n\nSP: {name}\nGiá: `{price:,}đ`\nCó: `{bal:,}đ`\n\n👉 Bấm /nap để nạp", parse_mode='Markdown')
 
         if not stock: return await query.edit_message_text("❌ Hết hàng rồi bro")
 
@@ -185,15 +180,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"✅ **MUA THÀNH CÔNG**\n\n📦 SP: {name}\n🔑 TK: `{stock}`\n💵 Dư: `{new_bal:,}đ`", parse_mode='Markdown')
         await context.bot.send_message(ADMIN_ID, f"🔔 Đơn mới\nUser: `{user_id}` @{query.from_user.username}\nSP: {name}\nGiá: {price:,}đ")
 
-# ==== ROUTES ====
+# ==== FLASK ROUTES - KHÔNG DÙNG ASYNC ====
 @app.route('/webhook', methods=['POST'])
-async def webhook():
+def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    await application.process_update(update)
+    loop.create_task(application.process_update(update))
     return 'ok'
 
 @app.route('/casso', methods=['POST'])
-async def casso():
+def casso():
     data = request.json['data'][0]
     amount = data['amount']
     desc = data['description'].upper()
@@ -211,15 +206,16 @@ async def casso():
     conn.commit()
 
     new_bal = get_balance(user_id)
-    await application.bot.send_message(user_id, f"✅ Nạp thành công {amount:,}đ\nMã: `{code}`\nDư: {new_bal:,}đ", parse_mode='Markdown')
-    await application.bot.send_message(ADMIN_ID, f"💰 {user_id} nạp {amount:,}đ\nMã: {code}")
+    loop.create_task(application.bot.send_message(user_id, f"✅ Nạp thành công {amount:,}đ\nMã: `{code}`\nDư: {new_bal:,}đ", parse_mode='Markdown'))
+    loop.create_task(application.bot.send_message(ADMIN_ID, f"💰 {user_id} nạp {amount:,}đ\nMã: {code}"))
     return 'ok'
 
 @app.route('/')
 def home(): return 'BT Shop Bot đang chạy'
 
-# ==== INIT HANDLERS ====
+# ==== INIT ====
 application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("nap", nap))
 application.add_handler(CommandHandler("sodu", sodu))
 application.add_handler(CommandHandler("add_tk", add_tk))
 application.add_handler(CommandHandler("cong", cong))
@@ -227,13 +223,13 @@ application.add_handler(CommandHandler("list", list_sp))
 application.add_handler(CommandHandler("xoa", xoa))
 application.add_handler(CallbackQueryHandler(button))
 
-# ==== RUN ====
-async def setup():
+# Set webhook khi start
+async def set_webhook():
     await application.initialize()
     await application.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
-    await application.start()
 
+loop.run_until_complete(set_webhook())
+
+# Gunicorn chạy app này
 if __name__ == '__main__':
-    asyncio.run(setup())
-    port = int(os.environ.get('PORT', 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run()
