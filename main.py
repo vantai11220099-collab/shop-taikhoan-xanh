@@ -175,22 +175,34 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == 'sodu':
         await query.message.reply_text(f"👛 Số dư: `{get_balance(user_id):,}đ`\n\nGõ /start về menu", parse_mode='Markdown')
 
-    elif query.data.startswith('buy_'):
-        pid = int(query.data.split('_')[1])
-        product = get_product(pid)
-        if not product:
-            return await query.message.reply_text("❌ Sản phẩm đã hết hàng")
+   elif query.data.startswith('buy_'):
+    pid = int(query.data.split('_')[1])
+    product = get_product(pid)
+    if not product: return await query.message.reply_text("❌ Sản phẩm đã hết hàng")
 
-        name, price, stock = product
-        bal = get_balance(user_id)
+    name, price, stock_text = product
+    bal = get_balance(user_id)
 
-        if bal < price:
-            keyboard = [[InlineKeyboardButton("💰 Nạp tiền ngay", callback_data='nap_tien')]]
-            return await query.message.reply_text(
-                f"❌ **KHÔNG ĐỦ SỐ DƯ**\n\nSP: {name}\nGiá: `{price:,}đ`\nCó: `{bal:,}đ`",
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode='Markdown'
-            )
+    if bal < price:
+        keyboard = [[InlineKeyboardButton("💰 Nạp tiền ngay", callback_data='nap_tien')]]
+        return await query.message.reply_text(f"❌ **KHÔNG ĐỦ SỐ DƯ**\n\nSP: {name}\nGiá: `{price:,}đ`\nCó: `{bal:,}đ`", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+
+    if not stock_text or not stock_text.strip():
+        return await query.message.reply_text("❌ Hết hàng rồi bro")
+
+    all_accounts = stock_text.strip().split('\n')
+    account_to_sell = all_accounts.pop(0)
+    remaining_stock = '\n'.join(all_accounts)
+
+    conn.execute("UPDATE users SET balance = balance -? WHERE user_id=?", (price, user_id))
+    conn.execute("UPDATE products SET stock =? WHERE id=?", (remaining_stock, pid))
+    conn.execute("INSERT INTO orders (user_id, product_id, time) VALUES (?,?,datetime('now'))", (user_id, pid)); conn.commit()
+
+    await query.message.reply_text(
+        f"✅ **MUA THÀNH CÔNG**\n\n📦 SP: {name}\n🔑 TK: `{account_to_sell}`\n💵 Dư: `{get_balance(user_id):,}đ`",
+        parse_mode='Markdown'
+    )
+    await context.bot.send_message(ADMIN_ID, f"🔔 Đơn mới\nUser: `{user_id}`\nSP: {name}\nTK: `{account_to_sell}`")
 
         if not stock:
             return await query.message.reply_text("❌ Hết hàng rồi bro")
