@@ -19,13 +19,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 
 @app.route('/webhook', methods=['POST'])
-async def telegram_webhook():
+def telegram_webhook():
     update = Update.de_json(request.get_json(force=True), bot)
-    await application.process_update(update)
+    asyncio.run(application.process_update(update))
     return 'ok'
 
 @app.route('/casso', methods=['POST']) 
-async def casso_webhook():
+def casso_webhook():
     data = request.json
     print("Casso báo tiền về:", data)
     return 'ok'
