@@ -50,13 +50,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard.append([InlineKeyboardButton("💰 Nạp tiền", callback_data='nap_tien'), InlineKeyboardButton("👛 Số dư", callback_data='sodu'), InlineKeyboardButton("🆘 Hỗ trợ", url=SUPPORT_URL)])
     await update.message.reply_text(f"🎉 **BT SHOP** 🎉\n\n👤 {update.effective_user.first_name}\n💵 Số dư: `{bal:,}đ`\n\n👇 **CHỌN DỊCH VỤ:**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
-async def nap(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id; code = random_code()
-    conn.execute("INSERT INTO trans (code, user_id, status) VALUES (?,?,?)", (code, user_id, 'pending')); conn.commit()
-    qr_url = f"https://img.vietqr.io/image/{BANK_CODE}-{STK}-compact2.png?amount=&addInfo={code}&accountName={TEN_CTK}"
-    text = f"""💸 **NẠP TIỀN TỰ ĐỘNG**\n\nNgân hàng: `{BANK}`\nSố TK: `{STK}`\nChủ TK: `{TEN_CTK}`\nNội dung: `{code}`\n\n⚠️ MÃ CHỈ DÙNG 1 LẦN\n👇 Quét QR chuyển nhanh"""
-    if update.callback_query: await update.callback_query.message.reply_photo(photo=qr_url, caption=text, parse_mode='Markdown')
-    else: await update.message.reply_photo(photo=qr_url, caption=text, parse_mode='Markdown')
+async def kho(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id!= ADMIN_ID:
+        return await update.message.reply_text("❌ Bạn không phải admin")
+    cur = conn.execute("SELECT id, name, price, stock FROM products")
+    rows = cur.fetchall()
+    if not rows:
+        return await update.message.reply_text("📦 Kho trống")
+    text = "**📦 KHO HÀNG**\n\n"
+    for pid, name, price, stock in rows:
+        text += f"ID `{pid}` - {name} - `{price}k`\nStock: `{stock if stock else 'HẾT'}`\n\n"
+    await update.message.reply_text(text, parse_mode='Markdown')
+
+async def cong(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id!= ADMIN_ID:
+        return await update.message.reply_text("❌ Bạn không phải admin")
+    try:
+        uid = int(context.args[0]); amount = int(context.args[1])
+        add_balance(uid, amount)
+        await update.message.reply_text(f"✅ Đã cộng {amount:,}đ cho `{uid}`\nDư mới: `{get_balance(uid):,}đ`", parse_mode='Markdown')
+    except:
+        await update.message.reply_text("Dùng: `/cong UserID SốTiền`\nVD: `/cong 123456 100000`", parse_mode='Markdown')
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id!= ADMIN_ID:
+        return await update.message.reply_text("❌ Bạn không phải admin")
+    cur = conn.execute("SELECT COUNT(*), SUM(price) FROM orders JOIN products ON orders.product_id = products.id WHERE products.id IS NOT NULL")
+    total_don, doanh_thu = cur.fetchone()
+    cur = conn.execute("SELECT COUNT(*) FROM users")
+    total_user = cur.fetchone()[0]
+    text = f"📊 **THỐNG KÊ**\n\n👥 User: `{total_user}`\n📦 Đơn: `{total_don or 0}`\n💰 Doanh thu: `{(doanh_thu or 0):,}đ`"
+    await update.message.reply_text(text, parse_mode='Markdown')
 
 async def sodu(update: Update, context: ContextTypes.DEFAULT_TYPE): await update.message.reply_text(f"👛 Số dư: `{get_balance(update.effective_user.id):,}đ`", parse_mode='Markdown')
 
