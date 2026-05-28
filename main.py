@@ -7,15 +7,13 @@ from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQuer
 TOKEN = os.environ['BOT_TOKEN']
 WEBHOOK_URL = os.environ['WEBHOOK_URL']
 ADMIN_ID = 8718318418 # ID admin từ @userinfobot
-STK = "106886640236" # STK ngân hàng
-BANK = "VietinBank" # Tên bank
-BANK_CODE = "icb" # Code bank: mb, vcb, tpb, tcb, acb
-TEN_CTK = "PHAM VAN TAI" # Tên chủ TK
+STK = "106886640236" # STK VietinBank
+BANK = "VietinBank"
+BANK_CODE = "icb" # icb=VietinBank, vcb=VCB, mb=MB
+TEN_CTK = "PHAM VAN TAI" # VIẾT HOA KHÔNG DẤU
 SUPPORT_URL = "https://t.me/btshopmmo" # Link hỗ trợ
 
 app = Flask(__name__)
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
 application = Application.builder().token(TOKEN).updater(None).build()
 
 # ==== DATABASE ====
@@ -82,7 +80,6 @@ async def nap(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.execute("INSERT INTO trans (code, user_id, status) VALUES (?,?,?)", (code, user_id, 'pending'))
     conn.commit()
 
-    # QR VietQR - Tự điền nội dung
     qr_url = f"https://img.vietqr.io/image/{BANK_CODE}-{STK}-compact2.png?amount=&addInfo={code}&accountName={TEN_CTK}"
 
     text = f"""💸 **NẠP TIỀN TỰ ĐỘNG**
@@ -183,13 +180,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ==== ROUTES ====
 @app.route('/webhook', methods=['POST'])
-def webhook():
+async def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    loop.run_until_complete(application.process_update(update))
+    await application.process_update(update)
     return 'ok'
 
 @app.route('/casso', methods=['POST'])
-def casso():
+async def casso():
     data = request.json['data'][0]
     amount = data['amount']
     desc = data['description'].upper()
@@ -207,15 +204,14 @@ def casso():
     conn.commit()
 
     new_bal = get_balance(user_id)
-    loop.run_until_complete(application.bot.send_message(user_id, f"✅ Nạp thành công {amount:,}đ\nMã: `{code}`\nDư: {new_bal:,}đ", parse_mode='Markdown'))
-    loop.run_until_complete(application.bot.send_message(ADMIN_ID, f"💰 {user_id} nạp {amount:,}đ\nMã: {code}"))
+    await application.bot.send_message(user_id, f"✅ Nạp thành công {amount:,}đ\nMã: `{code}`\nDư: {new_bal:,}đ", parse_mode='Markdown')
+    await application.bot.send_message(ADMIN_ID, f"💰 {user_id} nạp {amount:,}đ\nMã: {code}")
     return 'ok'
 
 @app.route('/')
 def home(): return 'BT Shop Bot đang chạy'
 
-# ==== RUN ====
-loop.run_until_complete(application.initialize())
+# ==== INIT HANDLERS ====
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("nap", nap))
 application.add_handler(CommandHandler("sodu", sodu))
@@ -225,7 +221,13 @@ application.add_handler(CommandHandler("list", list_sp))
 application.add_handler(CommandHandler("xoa", xoa))
 application.add_handler(CallbackQueryHandler(button))
 
+# ==== RUN - ĐÃ FIX WEBHOOK ====
+async def setup():
+    await application.initialize()
+    await application.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
+    await application.start()
+
 if __name__ == '__main__':
-    application.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
+    asyncio.run(setup())
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
