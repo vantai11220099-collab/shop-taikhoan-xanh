@@ -6,12 +6,12 @@ from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQuer
 # ==== CONFIG ==== Thay 6 dòng này
 TOKEN = os.environ['BOT_TOKEN']
 WEBHOOK_URL = os.environ['WEBHOOK_URL']
-ADMIN_ID = 871849512 # ID admin từ @userinfobot
-STK = "0123456789" # STK ngân hàng
-BANK = "MB Bank" # Tên bank
-BANK_CODE = "mb" # Code bank: mb, vcb, tpb, tcb, acb
-TEN_CTK = "NGUYEN VAN A" # Tên chủ TK
-SUPPORT_URL = "https://t.me/username_cua_ban" # Link hỗ trợ
+ADMIN_ID = 8718318418 # ID admin từ @userinfobot
+STK = "211819999" # STK ngân hàng
+BANK = "Vietinbank" # Tên bank
+BANK_CODE = "icb" # Code bank: mb, vcb, tpb, tcb, acb
+TEN_CTK = "PHAM VAN TAI" # Tên chủ TK
+SUPPORT_URL = "https://t.me/btshopmmo" # Link hỗ trợ
 
 app = Flask(__name__)
 loop = asyncio.new_event_loop()
