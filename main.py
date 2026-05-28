@@ -223,21 +223,21 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
 
-    if not stock_text or not stock_text.strip():
-        return await query.message.reply_text("❌ Hết hàng rồi bro")
+        stock_list = [line.strip() for line in stock_text.split('\n') if line.strip()]
+        if not stock_list:
+            return await query.message.reply_text("❌ Hết hàng rồi bro")
 
-    all_accounts = stock_text.strip().split('\n')
-    account_to_sell = all_accounts.pop(0)
-    remaining_stock = '\n'.join(all_accounts)
+        item = stock_list.pop(0)
+        new_stock = '\n'.join(stock_list)
 
-    conn.execute("UPDATE users SET balance = balance -? WHERE user_id=?", (price, user_id))
-    conn.execute("UPDATE products SET stock =? WHERE id=?", (remaining_stock, pid))
-    conn.execute("INSERT INTO orders (user_id, product_id, time) VALUES (?,?,datetime('now'))", (user_id, pid)); conn.commit()
+        conn.execute("UPDATE users SET balance = balance -? WHERE user_id =?", (price, user_id))
+        conn.execute("UPDATE products SET stock =? WHERE id =?", (new_stock, pid))
+        conn.commit()
 
-    await query.message.reply_text(
-        f"✅ **MUA THÀNH CÔNG**\n\n📦 SP: {name}\n🔑 TK: `{account_to_sell}`\n💵 Dư: `{get_balance(user_id):,}đ`",
-        parse_mode='Markdown'
-    )
+        await query.message.reply_text(
+            f"✅ **MUA THÀNH CÔNG**\n\nSP: {name}\n\n`{item}`",
+            parse_mode='Markdown'
+        )
     await context.bot.send_message(ADMIN_ID, f"🔔 Đơn mới\nUser: `{user_id}`\nSP: {name}\nTK: `{account_to_sell}`")
 
         if not stock:
