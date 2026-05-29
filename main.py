@@ -63,12 +63,12 @@ def main():
     logger.info(f"Setting webhook to: {full_webhook_url}")
     
     application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=TOKEN,
-        webhook_url=full_webhook_url,
-        drop_pending_updates=True
-    )
+    listen="0.0.0.0",
+    port=PORT,
+    url_path="webhook",  # ✅ Dùng "webhook" cố định
+    webhook_url=os.environ["WEBHOOK_URL"],  # ✅ Chỉ domain thôi, không nối gì
+    drop_pending_updates=True
+)
 
 if __name__ == "__main__":
     main()
