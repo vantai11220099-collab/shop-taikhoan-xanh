@@ -1,11 +1,27 @@
 import os
 import logging
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 logger = logging.getLogger(__name__)
 
 TOKEN = os.environ["TOKEN"]
 PORT = int(os.environ.get("PORT", 8000))
+
+# THÊM MẤY HÀM NÀY VÀO ✅
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Bot đã chạy ngon rồi bro 💸")
+
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Admin panel")
+
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("Đã bấm nút")
+
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"Ông vừa nhắn: {update.message.text}")
 
 def main():
     application = ApplicationBuilder().token(TOKEN).build()
