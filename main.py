@@ -293,29 +293,23 @@ async def webhook_handler(request):
     await application.update_queue.put(Update.de_json(data, application.bot))
     return web.Response()
 
-async def on_startup(app):
-    await application.initialize()
-    await application.start()
-    await application.bot.set_webhook(url=f"{WEBHOOK_URL}/webhook")
-    logger.info("Bot started")
+def main():
+    application = ApplicationBuilder().token(TOKEN).build()
 
-async def on_cleanup(app):
-    await application.stop()
-    await application.shutdown()
+    # Handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("nap", nap_lenh))
+    application.add_handler(CommandHandler("admin", admin_panel))
+    application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    
+    # Chạy webhook - v20 tự lo hết
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=int(PORT),
+        url_path=TOKEN,
+        webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+    )
 
-# ========== INIT ==========
-application = ApplicationBuilder().token(TOKEN).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("nap", nap_lenh))
-application.add_handler(CallbackQueryHandler(button))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-
-app = web.Application()
-app.router.add_post('/webhook', webhook_handler)
-app.router.add_post('/casso', casso_webhook)
-app.router.add_get('/', lambda r: web.Response(text='Bot running'))
-app.on_startup.append(on_startup)
-app.on_cleanup.append(on_cleanup)
-
-if __name__ == '__main__':
-    web.run_app(app, port=PORT)
+if __name__ == "__main__":
+    main()
