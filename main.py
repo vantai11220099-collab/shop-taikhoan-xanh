@@ -4,34 +4,29 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
-# ========= CONFIG =========
 TOKEN = os.getenv("TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8718318418"))
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.getenv("PORT", "8000"))
-CASSO_API_KEY = os.getenv("CASSO_API_KEY")
 
-# DEBUG TOKEN - Thêm để check biến môi trường
 if not TOKEN:
-    print("ERROR: TOKEN is None or empty", file=sys.stderr)
+    print("ERROR: TOKEN is None", file=sys.stderr)
     sys.exit(1)
-print(f"TOKEN loaded: {TOKEN[:10]}...") # Chỉ in 10 ký tự đầu cho an toàn
+if not WEBHOOK_URL:
+    print("ERROR: WEBHOOK_URL is None", file=sys.stderr)
+    sys.exit(1)
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+print(f"TOKEN loaded: {TOKEN[:10]}...")
+print(f"WEBHOOK_URL loaded: {WEBHOOK_URL}")
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ========= HANDLERS =========
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("🛒 Mua tài khoản", callback_data="buy")],
-        [InlineKeyboardButton("💰 Nạp tiền", callback_data="nap")],
-        [InlineKeyboardButton("📦 Đơn hàng", callback_data="orders")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Chào mừng đến Shop Tài Khoản Xanh 💸", reply_markup=reply_markup)
+    keyboard = [[InlineKeyboardButton("🛒 Mua tài khoản", callback_data="buy")],
+                [InlineKeyboardButton("💰 Nạp tiền", callback_data="nap")],
+                [InlineKeyboardButton("📦 Đơn hàng", callback_data="orders")]]
+    await update.message.reply_text("Chào mừng đến Shop Tài Khoản Xanh 💸", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -39,13 +34,9 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text("Admin Panel - Coming soon")
 
-async def nap_lenh(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Gửi cú pháp: NAP <số_tiền>\nVD: NAP 50000")
-
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
     if query.data == "buy":
         await query.edit_message_text("Tính năng mua hàng đang phát triển")
     elif query.data == "nap":
@@ -60,26 +51,23 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Gõ /start để xem menu nha")
 
-# ========= MAIN =========
 def main():
     application = ApplicationBuilder().token(TOKEN).build()
-
-    # Handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("admin", admin_panel))
-    application.add_handler(CommandHandler("nap", nap_lenh))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    # Webhook cho Railway - v20 tự lo hết
+    full_webhook_url = f"{WEBHOOK_URL}/{TOKEN}"
     logger.info(f"Starting webhook on port {PORT}")
-    logger.info(f"Webhook URL: {WEBHOOK_URL}/{TOKEN}")
+    logger.info(f"Setting webhook to: {full_webhook_url}")
     
     application.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         url_path=TOKEN,
-        webhook_url=f"{WEBHOOK_URL}/{TOKEN}"
+        webhook_url=full_webhook_url,
+        drop_pending_updates=True
     )
 
 if __name__ == "__main__":
